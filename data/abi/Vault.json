@@ -1,0 +1,7 @@
+[
+  "event DepositeSuccess(address indexed,address,address,uint256)",
+  "event WithdrawSuccess(address indexed,address,address,uint256)",
+  "function deposite(address,address,uint256)",
+  "function deposited(address,address) view returns (uint256)",
+  "function withdraw(address,address,uint256)"
+]
