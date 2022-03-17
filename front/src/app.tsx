@@ -1,21 +1,21 @@
 import React, { useCallback, useEffect, useState } from 'react'
-import { Row, Col, Input, Button } from 'antd'
+import { Row, Col, Input, Button, Modal, message } from 'antd'
 import { GithubOutlined } from '@ant-design/icons'
+import useWeb3Modal from './useWeb3Modal'
 import style from './index.module.less'
 import { ethers } from 'ethers'
-
 import MyTokenAbi from '../../data/abi/MyToken.json'
 import MyTokenAddr from '../../deployments/localhost/MyToken.json'
+
+import { ethErrors, serializeError, getMessageFromCode } from 'eth-rpc-errors'
 
 import VaultAbi from '../../data/abi/Vault.json'
 import VaultAddr from '../../deployments/localhost/Vault.json'
 
 export default function App() {
-  console.log('MyTokenAddr', MyTokenAddr, 'VaultAddr', VaultAddr)
-  const [account, setAccount] = useState()
+  // console.log('MyTokenAddr', MyTokenAddr, 'VaultAddr', VaultAddr)
 
-  const [signer, setSigner] = useState<ethers.providers.JsonRpcSigner>()
-  const [provider, setProvider] = useState<ethers.providers.Web3Provider>()
+  const { buttonText, btnIsDisabled, onClick, address, accounts, setAccounts, signer, provider } = useWeb3Modal()
 
   const [token, setToken] = useState<ethers.Contract>()
 
@@ -23,70 +23,21 @@ export default function App() {
 
   const [mintNum, setMintNum] = useState<number>()
 
-  // connect wallet
-  async function connectWallet() {
-    await initAccount()
-  }
-
-  // 初始化 provider,singner
-  async function initProviderOrSigner() {
-    const tempProvider = new ethers.providers.Web3Provider(window.ethereum)
-    // console.log(
-    //   'window.ethereum',
-    //   window.ethereum,
-    //   'tempProvider',
-    //   tempProvider,
-    //   'tempProvider.getSigner()',
-    //   tempProvider.getSigner()
-    // )
-    setProvider(tempProvider)
-    setSigner(tempProvider.getSigner())
-  }
-
-  useEffect(() => {
-    console.log('--account', account)
-    if (!!account) {
-      initProviderOrSigner()
-    }
-  }, [account])
-
-  useEffect(() => {
-    if (!!provider && !!signer) {
-      initDeployedContract()
-    }
-  }, [provider, signer])
-
-  // 初始化账号
-  async function initAccount() {
-    try {
-      if (typeof window.ethereum !== 'undefined') {
-        console.log('MetaMask is installed!')
-        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
-        const curAccount = accounts?.[0]
-        setAccount(curAccount)
-        // await initProviderOrSigner()
-        // await initDeployedContract()
-        //  获取合约中相关信息
-        // await getTokenInfo()
-      }
-    } catch (e) {
-      console.log('初始化失败', e)
-    }
-  }
+  // console.log('--window.ethereum', window.ethereum)
 
   // 链接已部署合约
   async function initDeployedContract() {
-    // setVault(new ethers)
-
-    let network = await provider?.getNetwork()
-    let chainId = network?.chainId
-    console.log('network', network, 'chainId:', chainId)
-
-    const ecMt = new ethers.Contract(MyTokenAddr.address, MyTokenAbi, signer)
-    console.log('account', account, 'signer', signer, 'provider', provider)
+    console.log('signer', signer)
     setToken(new ethers.Contract(MyTokenAddr.address, MyTokenAbi, signer))
     setVault(new ethers.Contract(VaultAddr.address, VaultAbi, signer))
   }
+
+  useEffect(() => {
+    if (!!signer) {
+      console.log('initDeployedContract')
+      initDeployedContract()
+    }
+  }, [signer])
 
   const [tokenName, setTokenName] = useState('')
   const [tokenTotalSupply, setTokenTotalSupply] = useState<string>()
@@ -94,16 +45,12 @@ export default function App() {
 
   // 获取token相关信息
   async function getTokenInfo() {
-    console.log('getTokenInfo')
     const tn = await token?.name()
     setTokenName(tn)
-    console.log('getTokenInfo', tn)
     const totalSupply = await token?.totalSupply()
     setTokenTotalSupply(ethers.utils.formatUnits(totalSupply, 18))
-    const fBalanceOf = await token?.balanceOf(account)
+    const fBalanceOf = await token?.balanceOf(address)
     setBalanceOf(ethers.utils.formatUnits(fBalanceOf, 18))
-
-    console.log('tn', tn, '-totalSupply', totalSupply, 'fBalanceOf', fBalanceOf)
   }
 
   // console.log()
@@ -117,14 +64,28 @@ export default function App() {
 
   const [recipient, setRecipient] = useState<string>()
   const [transferAmount, setTransferAmount] = useState<string>('0')
+
   // 转账
   async function transfer() {
     let amount = ethers.utils.parseUnits(transferAmount, 18)
     console.log('--amount', amount)
-    token?.transfer(recipient, amount).then((r: any) => {
-      console.log(r) // 返回值不是true
-      getTokenInfo()
-    })
+    token
+      ?.transfer(recipient, amount)
+      .then((r: any) => {
+        console.log('00000rrrr', r) // 返回值不是true
+        getTokenInfo()
+      })
+      .catch((err: any) => {
+        console.log('---', err)
+        const e = serializeError(err)
+        console.log('---e', e)
+        if (e?.data) {
+          message.error((e?.data as any).originalError?.error?.message)
+        } else {
+          message.error(getMessageFromCode(e?.code))
+        }
+        // message.error(getMessageFromCode(e?.code))
+      })
   }
 
   const [depositeAmount, setDepositeAmount] = useState<string>('0')
@@ -159,17 +120,37 @@ export default function App() {
   const [userDeposited, setUserDeposited] = useState<string>('0')
   // 获取vault相关信息
   async function getVaultInfo() {
-    const fBalanceOf = await vault?.deposited(MyTokenAddr.address, account)
+    const fBalanceOf = await vault?.deposited(MyTokenAddr.address, address)
     setUserDeposited(ethers.utils.formatUnits(fBalanceOf, 18))
   }
 
   useEffect(() => {
-    if (token && vault) {
+    if (token && vault && address) {
       getTokenInfo()
       console.log('getTokenInfo---start')
       getVaultInfo()
     }
-  }, [token, vault])
+  }, [token, vault, address])
+
+  // 不能用事件监听去进行 交易状态的确认。  负载太大，没有哪个provider会提供
+  // 监听token事件
+  useEffect(() => {
+    if (token) {
+      console.log('监听token事件')
+      // 事件监听-过滤器方式
+      let filter = token?.filters.Transfer(address)
+
+      // 事件监听
+      // 监听当前区块的token的Transfer事件
+      token?.on(filter, (from, to, tokenId, event) => {
+        console.log('事件监听', event)
+        // 查看后面的事件触发器  Event Emitter 了解事件对象的属性
+        console.log(event.blockNumber, event)
+        message.success('转账成功')
+        getTokenInfo()
+      })
+    }
+  }, [token])
 
   return (
     <div className={style.global}>
@@ -182,20 +163,12 @@ export default function App() {
 
       <Row justify='center' gutter={20}>
         <Col>
-          {!account && (
-            <Button onClick={connectWallet} type='primary'>
-              链接wallet
+          <div>
+            <Button disabled={btnIsDisabled} onClick={onClick}>
+              {buttonText}
             </Button>
-          )}
-        </Col>
-
-        <Col>
-          {!!account && (
-            <div style={{ background: '#79b473' }}>
-              <span>当前账户</span>
-              <span>{account || '-----'}</span>
-            </div>
-          )}
+            <span>账号：{address}</span>
+          </div>
         </Col>
       </Row>
       <Row justify='center' gutter={20}>
