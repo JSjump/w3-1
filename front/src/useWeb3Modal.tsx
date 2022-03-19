@@ -19,6 +19,8 @@ export default function useWeb3Modal() {
   const onboarding = React.useRef<MetaMaskOnboarding>()
   const [address, setAddress] = useState<string>()
 
+  const [chainId, setChainId] = useState<number>()
+
   //   provider， signer 处理
   const [signer, setSigner] = useState<ethers.providers.JsonRpcSigner>()
   const [provider, setProvider] = useState<ethers.providers.Web3Provider>()
@@ -26,12 +28,17 @@ export default function useWeb3Modal() {
   // 初始化 provider,singner
   async function initProviderOrSigner() {
     const tempProvider = new ethers.providers.Web3Provider(window.ethereum)
+    const network = await tempProvider?.getNetwork()
+    console.log('--network', network)
+    // 根据不同链的切换，更改相应的合约所在链地址
+
     setProvider(tempProvider)
     setSigner(tempProvider.getSigner())
+    setChainId(network?.chainId)
   }
 
   useEffect(() => {
-    if (!onboarding?.current) {
+    if (!onboarding?.current && !window?.ethereum) {
       onboarding.current = new MetaMaskOnboarding()
     }
   }, [])
@@ -45,8 +52,8 @@ export default function useWeb3Modal() {
   }, [address])
 
   useEffect(() => {
-    //   是否已安装钱包
-    if (MetaMaskOnboarding.isMetaMaskInstalled()) {
+    // 若已注入provider
+    if (window.ethereum) {
       // 是否已经链接账号
       if (accounts.length > 0) {
         setButtonText(CONNECTED_TEXT)
@@ -65,7 +72,7 @@ export default function useWeb3Modal() {
       setAccounts(newAccounts)
       setAddress(newAccounts[0])
     }
-    if (MetaMaskOnboarding.isMetaMaskInstalled()) {
+    if (window.ethereum) {
       // 查询 初始化 账号accounts
       window.ethereum.request({ method: 'eth_requestAccounts' }).then(handleNewAccounts)
       //   监听账号切换
@@ -97,7 +104,8 @@ export default function useWeb3Modal() {
     address,
     setAccounts,
     signer,
-    provider
+    provider,
+    chainId
   }
 
   // return (

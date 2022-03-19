@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "hardhat/console.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "./MyToken.sol";
 
 
 contract Vault {
@@ -14,6 +15,10 @@ contract Vault {
 
     event WithdrawSuccess(address indexed coin_, address from_, address to_,uint256 num_);
 
+    // 获取创建字节码
+    function getCreationCode()external pure returns (bytes memory){
+        return type(MyToken).creationCode;
+    }
 
     // 储存
     function deposite(address coin_,address user_,uint256 num_) public {

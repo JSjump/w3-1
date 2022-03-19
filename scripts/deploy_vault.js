@@ -5,6 +5,7 @@
 // Runtime Environment's members available in the global scope.
 const hre = require("hardhat");
 const { writeAddr } = require("./artifact_log.js");
+const { network } = require("hardhat");
 
 async function main() {
   // Hardhat always runs the compile task when running scripts with its command
@@ -21,7 +22,8 @@ async function main() {
   await vault.deployed();
 
   console.log("Vault deployed to:", vault.address);
-  await writeAddr(vault.address, "Vault");
+
+  await writeAddr(vault.address, "Vault", network.name);
 }
 
 // We recommend this pattern to be able to use async/await everywhere

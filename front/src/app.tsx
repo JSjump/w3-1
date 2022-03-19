@@ -12,10 +12,13 @@ import { ethErrors, serializeError, getMessageFromCode } from 'eth-rpc-errors'
 import VaultAbi from '../../data/abi/Vault.json'
 import VaultAddr from '../../deployments/localhost/Vault.json'
 
+import chainConfig from './utils/chainConfig'
+
 export default function App() {
   // console.log('MyTokenAddr', MyTokenAddr, 'VaultAddr', VaultAddr)
 
-  const { buttonText, btnIsDisabled, onClick, address, accounts, setAccounts, signer, provider } = useWeb3Modal()
+  const { buttonText, btnIsDisabled, onClick, address, accounts, setAccounts, signer, provider, chainId } =
+    useWeb3Modal()
 
   const [token, setToken] = useState<ethers.Contract>()
 
@@ -23,21 +26,34 @@ export default function App() {
 
   const [mintNum, setMintNum] = useState<number>()
 
+  const tokenAddr = chainConfig?.[chainId as 5 | 97]?.MyTokenAddr
+  const vaultAddr = chainConfig?.[chainId as 5 | 97]?.VaultAddr
+
+  console.log('tokenAddr--', tokenAddr, 'config', chainConfig?.[chainId as 5 | 97]?.VaultAddr, 'chainId', chainId)
+  console.log('vaultAddr--', vaultAddr)
+
   // console.log('--window.ethereum', window.ethereum)
 
   // 链接已部署合约
-  async function initDeployedContract() {
-    console.log('signer', signer)
-    setToken(new ethers.Contract(MyTokenAddr.address, MyTokenAbi, signer))
-    setVault(new ethers.Contract(VaultAddr.address, VaultAbi, signer))
-  }
+  const initDeployedContract = useCallback(async () => {
+    console.log('+++++++-tokenAddr', tokenAddr, vaultAddr)
+
+    if (tokenAddr && vaultAddr) {
+      console.log('+++++++-tokenAddr', tokenAddr, vaultAddr)
+      // 根据不同链的切换，更改相应的合约所在链地址
+      setToken(new ethers.Contract(tokenAddr, MyTokenAbi, signer))
+      setVault(new ethers.Contract(vaultAddr, VaultAbi, signer))
+    }
+  }, [tokenAddr, vaultAddr])
+
+  useEffect(() => {}, [])
 
   useEffect(() => {
     if (!!signer) {
       console.log('initDeployedContract')
       initDeployedContract()
     }
-  }, [signer])
+  }, [signer, initDeployedContract])
 
   const [tokenName, setTokenName] = useState('')
   const [tokenTotalSupply, setTokenTotalSupply] = useState<string>()
@@ -94,7 +110,7 @@ export default function App() {
   async function deposite() {
     let amount = ethers.utils.parseUnits(depositeAmount, 18)
     console.log('--amount', amount)
-    vault?.deposite(MyTokenAddr.address, recipienter, amount)
+    vault?.deposite(tokenAddr, recipienter, amount)
     // .then((r: any) => {
     //   console.log(r) // 返回值不是true
     //   getTokenInfo()
@@ -107,20 +123,20 @@ export default function App() {
   async function withdraw() {
     let amount = ethers.utils.parseUnits(withdrawAmount, 18)
     console.log('--amount', amount)
-    vault?.withdraw(MyTokenAddr.address, withdrawer, amount)
+    vault?.withdraw(tokenAddr, withdrawer, amount)
   }
 
   const [approvalAmount, setApprovalAmount] = useState<string>('0')
   // token授权
   async function approval() {
     let amount = ethers.utils.parseUnits(approvalAmount, 18)
-    token?.approve(VaultAddr.address, amount)
+    token?.approve(vaultAddr, amount)
   }
 
   const [userDeposited, setUserDeposited] = useState<string>('0')
   // 获取vault相关信息
   async function getVaultInfo() {
-    const fBalanceOf = await vault?.deposited(MyTokenAddr.address, address)
+    const fBalanceOf = await vault?.deposited(tokenAddr, address)
     setUserDeposited(ethers.utils.formatUnits(fBalanceOf, 18))
   }
 
